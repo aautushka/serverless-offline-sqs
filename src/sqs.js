@@ -115,7 +115,7 @@ class SQS {
       if (messages.length > 0) {
         try {
           const event = new SQSEvent(messages, this.region, arn);
-          this.handler(functionKey, event);
+          this.handler(functionKey, event).catch((err) => log.warning(err.stack));
 
           Promise.all(
             chunk(
