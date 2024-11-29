@@ -36,7 +36,7 @@ class ServerlessOfflineSQS {
     this.cliOptions = null;
     this.options = null;
     this.sqs = null;
-    this.lambda = null;
+    this.lambdas = null;
     this.serverless = null;
 
     this.cliOptions = cliOptions;
@@ -57,7 +57,7 @@ class ServerlessOfflineSQS {
 
     const {sqsEvents, lambdas} = this._getEvents();
 
-    await this._createLambda(lambdas);
+    this.lambdas = lambdas;
 
     const eventModules = [];
 
@@ -104,10 +104,6 @@ class ServerlessOfflineSQS {
 
     const eventModules = [];
 
-    if (this.lambda) {
-      eventModules.push(this.lambda.cleanup());
-    }
-
     if (this.sqs) {
       eventModules.push(this.sqs.stop(SERVER_SHUTDOWN_TIMEOUT));
     }
@@ -121,15 +117,25 @@ class ServerlessOfflineSQS {
 
   async _createLambda(lambdas) {
     const {default: Lambda} = await import('serverless-offline/lambda');
-    this.lambda = new Lambda(this.serverless, this.options);
-
-    this.lambda.create(lambdas);
+    let lambda = new Lambda(this.serverless, this.options);
+    lambda.create(lambdas);
+    return lambda;
   }
 
   async _createSqs(events, skipStart) {
     const resources = this._getResources();
 
-    this.sqs = new SQS(this.lambda, resources, this.options);
+    const handler = async (functionKey, event) => {
+      const lambda = await this._createLambda(this.lambdas);
+
+      const lambdaFunction =  lambda.get(functionKey);
+      lambdaFunction.setEvent(event);
+
+      await lambdaFunction.runHandler();
+      await lambda.cleanup();
+    }
+
+    this.sqs = new SQS(handler, resources, this.options);
 
     await this.sqs.create(events);
 

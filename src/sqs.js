@@ -22,12 +22,12 @@ const delay = timeout =>
   });
 
 class SQS {
-  constructor(lambda, resources, options) {
-    this.lambda = null;
+  constructor(handler, resources, options) {
+    this.handler = null;
     this.resources = null;
     this.options = null;
 
-    this.lambda = lambda;
+    this.handler = handler;
     this.resources = resources;
     this.options = options;
 
@@ -114,14 +114,10 @@ class SQS {
 
       if (messages.length > 0) {
         try {
-          const lambdaFunction = this.lambda.get(functionKey);
-
           const event = new SQSEvent(messages, this.region, arn);
-          lambdaFunction.setEvent(event);
+          this.handler(functionKey, event);
 
-          await lambdaFunction.runHandler();
-
-          await Promise.all(
+          Promise.all(
             chunk(
               10,
               (messages || []).map(({MessageId: Id, ReceiptHandle}) => ({
